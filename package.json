@@ -1,0 +1,18 @@
+{
+  "name": "secaudit",
+  "version": "0.1.0",
+  "description": "Dependency security audit CLI wrapping npm audit, retire.js, and cve-lite-cli",
+  "bin": {
+    "secaudit": "bin/secaudit.js"
+  },
+  "main": "src/cli.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "cross-spawn": "^7.0.6"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
