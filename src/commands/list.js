@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const { TOOLS } = require('../lib/paths');
 const { listCheckpoints } = require('../lib/checkpoints');
@@ -12,8 +13,9 @@ function summarize(checkpoint) {
   const npmFull = parseNpmAudit(npmDir ? readJsonFile(path.join(npmDir, 'report.json')) : null);
   const retire = parseRetire(retireDir ? readJsonFile(path.join(retireDir, 'report.json')) : null);
   const cveLite = parseCveLite(cveDir ? readJsonFile(path.join(cveDir, 'report.json')) : null);
+  const npmSkipped = Boolean(npmDir && fs.existsSync(path.join(npmDir, 'SKIPPED.txt')));
 
-  return combinedSummary(npmFull, retire, cveLite);
+  return combinedSummary(npmFull, retire, cveLite, { npmSkipped });
 }
 
 async function list(cwd) {

@@ -6,6 +6,7 @@ const { labelExists } = require('../lib/checkpoints');
 const { BIN, isReachable, run, openInBrowser } = require('../lib/tools');
 const { readJsonFile, parseNpmAudit, parseRetire, parseCveLite } = require('../lib/parse');
 const { combinedSummary } = require('../lib/summary');
+const { detectLockfile } = require('../lib/packageManager');
 
 async function scan(cwd, { label: explicitLabel, open = true } = {}) {
   let label;
@@ -42,50 +43,74 @@ async function scan(cwd, { label: explicitLabel, open = true } = {}) {
   ensureDir(cveDir);
 
   const results = { npmAudit: false, retire: false, cveLite: false };
+  let npmSkipped = false;
 
   // --- npm audit + audit-export ---
   process.stdout.write('Running npm audit...       ');
   const fullReportPath = path.join(npmDir, 'report.json');
   const prodReportPath = path.join(npmDir, 'report-prod.json');
   const htmlPath = path.join(npmDir, 'report.html');
+  const skippedMarkerPath = path.join(npmDir, 'SKIPPED.txt');
 
-  const fullAudit = run(BIN.npm, ['audit', '--json'], { cwd });
-  const prodAudit = run(BIN.npm, ['audit', '--omit=dev', '--json'], { cwd });
-
-  let fullJsonText = null;
-  try {
-    JSON.parse(fullAudit.stdout);
-    fullJsonText = fullAudit.stdout;
-  } catch {
-    fullJsonText = null;
-  }
-
-  if (fullAudit.error || fullJsonText === null) {
-    console.log(`failed (${fullAudit.error ? fullAudit.error.message : 'could not parse npm audit output'})`);
+  // npm audit only understands npm's own lockfile — running it against a
+  // pnpm/yarn/bun project fails with ENOLOCK. That failure is still valid
+  // JSON on stdout, so it must be checked for explicitly below; detecting
+  // the lockfile up front lets us skip the doomed call and explain why.
+  const lockfile = detectLockfile(cwd);
+  if (lockfile && lockfile.manager !== 'npm') {
+    npmSkipped = true;
+    fs.writeFileSync(
+      skippedMarkerPath,
+      `npm audit skipped: this project uses ${lockfile.manager} (${lockfile.file} found), not npm's package-lock.json.\nretire.js and cve-lite-cli both still ran and cover this project.\n`
+    );
+    console.log(`skipped (project uses ${lockfile.manager} — ${lockfile.file} found, not npm's package-lock.json)`);
   } else {
-    fs.writeFileSync(fullReportPath, fullJsonText);
-    if (!prodAudit.error) {
-      try {
-        JSON.parse(prodAudit.stdout);
-        fs.writeFileSync(prodReportPath, prodAudit.stdout);
-      } catch {
-        // production-tree capture is best-effort; full tree already saved
-      }
-    }
+    const fullAudit = run(BIN.npm, ['audit', '--json'], { cwd });
+    const prodAudit = run(BIN.npm, ['audit', '--omit=dev', '--json'], { cwd });
 
-    if (!isReachable(BIN.auditExport)) {
-      console.log(`done → ${fullReportPath} (audit-export not found — no HTML generated)`);
+    let fullParsed = null;
+    try {
+      fullParsed = JSON.parse(fullAudit.stdout);
+    } catch {
+      fullParsed = null;
+    }
+    // npm audit reports real failures (missing lockfile, registry errors,
+    // etc.) as a valid `{ error: {...} }` JSON body with a non-zero exit
+    // code, not as a spawn error — treat that shape as a failure too,
+    // otherwise it silently reads as "0 vulnerabilities found".
+    const npmAuditFailed = fullAudit.error || fullParsed === null || fullParsed.error;
+
+    if (npmAuditFailed) {
+      let reason = 'could not parse npm audit output';
+      if (fullAudit.error) reason = fullAudit.error.message;
+      else if (fullParsed?.error) reason = fullParsed.error.summary;
+      console.log(`failed (${reason})`);
     } else {
-      // audit-export's own --open flag is unreliable on Windows, so secaudit
-      // always generates the HTML quietly and opens it itself below instead.
-      const exportArgs = ['--path', htmlPath, '--title', `NPM Audit — ${label}`];
-      const exportResult = run(BIN.auditExport, exportArgs, { cwd, input: fullJsonText });
-      if (exportResult.error || !fs.existsSync(htmlPath)) {
-        console.log(`done (JSON only — audit-export failed) → ${fullReportPath}`);
+      const fullJsonText = fullAudit.stdout;
+      fs.writeFileSync(fullReportPath, fullJsonText);
+      if (!prodAudit.error) {
+        try {
+          const prodParsed = JSON.parse(prodAudit.stdout);
+          if (!prodParsed.error) fs.writeFileSync(prodReportPath, prodAudit.stdout);
+        } catch {
+          // production-tree capture is best-effort; full tree already saved
+        }
+      }
+
+      if (!isReachable(BIN.auditExport)) {
+        console.log(`done → ${fullReportPath} (audit-export not found — no HTML generated)`);
       } else {
-        console.log(`done → ${htmlPath}`);
-        results.npmAudit = true;
-        if (open) openInBrowser(htmlPath);
+        // audit-export's own --open flag is unreliable on Windows, so secaudit
+        // always generates the HTML quietly and opens it itself below instead.
+        const exportArgs = ['--path', htmlPath, '--title', `NPM Audit — ${label}`];
+        const exportResult = run(BIN.auditExport, exportArgs, { cwd, input: fullJsonText });
+        if (exportResult.error || !fs.existsSync(htmlPath)) {
+          console.log(`done (JSON only — audit-export failed) → ${fullReportPath}`);
+        } else {
+          console.log(`done → ${htmlPath}`);
+          results.npmAudit = true;
+          if (open) openInBrowser(htmlPath);
+        }
       }
     }
   }
@@ -129,7 +154,7 @@ async function scan(cwd, { label: explicitLabel, open = true } = {}) {
   const retireParsed = results.retire ? parseRetire(readJsonFile(retireReportPath)) : parseRetire(null);
   const cveLiteParsed = results.cveLite ? parseCveLite(readJsonFile(cveReportPath)) : parseCveLite(null);
 
-  console.log(`Summary: ${combinedSummary(npmFullParsed, retireParsed, cveLiteParsed)}`);
+  console.log(`Summary: ${combinedSummary(npmFullParsed, retireParsed, cveLiteParsed, { npmSkipped })}`);
 
   if (open && results.npmAudit) console.log('Opening npm audit report in browser...');
   if (open && results.cveLite) console.log('Opening cve-lite report in browser...');

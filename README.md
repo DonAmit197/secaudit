@@ -46,6 +46,29 @@ produce:
   below) and it will check for each one and offer to install any that are
   missing.
 
+## Which package managers are supported?
+
+`secaudit` works with npm, pnpm, Yarn, and Bun projects — you don't need
+anything different depending on which one you use. It automatically
+detects which one your project uses by checking for that manager's
+lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, or
+`bun.lock`), and adjusts what it runs accordingly:
+
+- **`retire.js`** scans the actual files already installed in
+  `node_modules/`, so it works identically no matter which package manager
+  put them there.
+- **`cve-lite-cli`** reads pnpm/Yarn/Bun lockfiles natively, just like it
+  reads npm's — no extra setup needed.
+- **`npm audit`** is the one exception: it's built by the npm team to only
+  understand npm's own `package-lock.json`, so it can't be pointed at a
+  pnpm/Yarn/Bun project. When `secaudit` detects a non-npm lockfile, it
+  skips the `npm audit` step for you and says so plainly in the output
+  (`skipped (project uses pnpm — pnpm-lock.yaml found, not npm's
+  package-lock.json)`) rather than guessing or failing silently. The other
+  two tools still run as normal, and the summary line makes clear that
+  it's covering two tools, not three, so it's never mistaken for "no
+  vulnerabilities found."
+
 ## Install
 
 `secaudit` isn't published to the npm registry yet (see [Project stages](#project-stages)
