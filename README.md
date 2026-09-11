@@ -46,6 +46,20 @@ produce:
   below) and it will check for each one and offer to install any that are
   missing.
 
+## Platform support
+
+`secaudit` has been developed and tested on **Windows only** so far. It's
+expected to work on macOS and Linux too — the code follows the same
+cross-platform patterns the underlying tools themselves use — but that
+hasn't been confirmed on a real machine yet.
+
+If you're on Mac or Linux and something doesn't work (a command fails, a
+report doesn't open, anything that looks platform-specific), please share
+what happened rather than assuming it's expected — open an issue on the
+repo or message directly. Real feedback from a real run is worth more than
+any amount of guessing, and it's the fastest way to get those platforms
+properly confirmed.
+
 ## Which package managers are supported?
 
 `secaudit` works with npm, pnpm, Yarn, and Bun projects — you don't need
