@@ -3,6 +3,7 @@ const init = require('./commands/init');
 const scan = require('./commands/scan');
 const compare = require('./commands/compare');
 const list = require('./commands/list');
+const doctor = require('./commands/doctor');
 
 function run(argv) {
   const program = new Command();
@@ -34,6 +35,13 @@ function run(argv) {
     .option('--before-timestamp <iso>', 'pick an older checkpoint for label1 explicitly')
     .action(async (label1, label2, opts) => {
       await compare(cwd, label1, label2, { beforeTimestamp: opts.beforeTimestamp });
+    });
+
+  program
+    .command('doctor')
+    .description('Check your machine for anything that stops the scanners from installing or running')
+    .action(async () => {
+      await doctor(cwd);
     });
 
   program

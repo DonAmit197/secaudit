@@ -4,6 +4,7 @@ const { TOOLS, comparisonsDir, ensureDir } = require('../lib/paths');
 const { findByLabel, mostRecentTwo, allLabels } = require('../lib/checkpoints');
 const { readJsonFile, parseNpmAudit, parseRetire, parseCveLite } = require('../lib/parse');
 const { buildComparisonMarkdown } = require('../lib/comparison');
+const { checkpointStatus } = require('../lib/summary');
 
 function loadSide(checkpoint) {
   const npmDir = checkpoint.dirs[TOOLS.NPM_AUDIT];
@@ -81,6 +82,7 @@ async function compare(cwd, label1, label2, { beforeTimestamp } = {}) {
     npmProd: { before: before.npmProd, after: after.npmProd },
     retire: { before: before.retire, after: after.retire },
     cveLite: { before: before.cveLite, after: after.cveLite },
+    status: { before: checkpointStatus(beforeCp), after: checkpointStatus(afterCp) },
   });
 
   ensureDir(comparisonsDir(cwd));

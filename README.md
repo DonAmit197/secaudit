@@ -118,15 +118,45 @@ Run this once per project, before your first scan. It:
 
 1. Creates the `audits/` folder structure (see below) where every future
    scan will be saved.
-2. Checks whether `npm`, `retire`, `cve-lite-cli`, and `audit-export` are
-   installed and reachable. If any are missing, it asks (yes/no) whether
-   to install them for you.
-3. Asks (yes/no) whether to add `audits/` to your `.gitignore`. Scan
+2. Checks your environment: Node.js and npm versions, and whether npm's
+   global folder is on your `PATH` (if it isn't, globally installed
+   commands — including `secaudit` itself — only work through `npx`, and
+   `init` shows the exact command to fix it).
+3. Checks whether `retire`, `cve-lite-cli`, and `audit-export` are
+   installed, as a ✔ / ✖ checklist. If any are missing, it asks (yes/no)
+   whether to install them for you.
+4. Asks (yes/no) whether to add `audits/` to your `.gitignore`. Scan
    results can contain a lot of detail about your dependencies, so most
    teams choose not to commit them — but the choice is yours.
 
+**If a tool can't be installed**, `init` doesn't dump npm's raw error on
+you. It tells you, in plain language, why it failed and how to fix it,
+keeps npm's full output in `audits/logs/install-<tool>.log`, and then asks
+whether to **skip that tool for this project**:
+
+```
+  ✖ cve-lite-cli    could not be installed
+
+    Why: cve-lite-cli could not build its native part (better-sqlite3)
+      ...
+    How to fix:
+      ...
+
+    `secaudit scan` still runs the other scanners and leaves cve-lite-cli out of the results.
+  ? Skip cve-lite-cli for this project? [Y/n] y
+  ○ cve-lite-cli    skipped — re-enable any time with `secaudit init`
+```
+
+Skipping means you still get a working setup straight away — `secaudit
+scan` runs the other scanners, and every summary says which tool was
+skipped (e.g. `across npm audit + retire.js — cve-lite-cli skipped`) so a
+skipped tool is never mistaken for "no vulnerabilities found". The choice
+is saved in `audits/secaudit.config.json`.
+
 It's safe to run `secaudit init` again later; it won't undo anything you
-already have.
+already have. Running it again is also how you retry a skipped tool — and
+if you've since installed that tool yourself, `init` notices and turns it
+back on automatically.
 
 ### `secaudit scan`
 
@@ -183,11 +213,59 @@ Pass `--before-timestamp <iso>` if you have multiple scans that share the
 same label and want to compare against an older one specifically rather
 than the most recent match.
 
+If a tool was skipped or failed in one of the two scans, that tool's
+section in the report is marked **Not comparable**, rather than showing
+every finding as "closed" or "newly introduced".
+
 ### `secaudit list`
 
 Shows every scan you've saved for this project, oldest information first,
 with a one-line summary of each — useful for finding a label to pass to
 `secaudit compare`, or just checking what's been scanned so far.
+
+### `secaudit doctor`
+
+A read-only health check — it changes nothing. It prints a checklist of
+everything that commonly stops the scanners from installing or running:
+
+- Node.js and npm versions, and whether npm's global folder is on `PATH`
+- proxy settings, whether the npm registry is reachable, and whether
+  GitHub is reachable (needed for prebuilt native binaries)
+- each scanner: installed, missing, or skipped for this project
+- any install logs saved by `secaudit init`
+
+It ends with a numbered list of problems and how to fix each one. If
+something isn't working for a teammate, asking for the output of
+`secaudit doctor` is the fastest way to see why.
+
+## Troubleshooting
+
+Start with `secaudit doctor`. The most common problems:
+
+- **`secaudit` is "not recognized" right after installing it.** npm's
+  global folder isn't on your `PATH`. `secaudit init` / `secaudit doctor`
+  print the folder and the exact command to add it; open a new terminal
+  afterwards. (`npx secaudit ...` works in the meantime.)
+- **`cve-lite-cli` fails to install with `prebuild-install || node-gyp
+  rebuild` / `gyp ERR!`.** `cve-lite-cli` depends on `better-sqlite3`,
+  which contains compiled code. npm first downloads a prebuilt binary from
+  GitHub, and if that fails it tries to compile one, which needs the C++
+  build tools and Python. On company networks the download is usually
+  blocked by a proxy. Fixes, in order of effort:
+  1. Point npm at your company proxy:
+     `npm config set proxy http://<host>:<port>` and
+     `npm config set https-proxy http://<host>:<port>`.
+  2. Install the build tools (Windows: Visual Studio Build Tools with the
+     "Desktop development with C++" workload, plus Python).
+  3. Skip `cve-lite-cli` — `secaudit` works fine with the other two
+     scanners.
+- **`EPERM: operation not permitted, rmdir ...` during an install.** A file
+  was locked (another terminal, VS Code, or antivirus) and npm couldn't
+  clean up a half-installed folder. Close other terminals and editors,
+  delete the folder named in the message, and retry.
+- **Certificate errors (`SELF_SIGNED_CERT_IN_CHAIN`).** Your network
+  inspects HTTPS traffic. Ask IT for the company root certificate and run
+  `npm config set cafile <path-to-cert.pem>`.
 
 ## What gets created on disk
 
@@ -210,9 +288,15 @@ your-project/
     │   └── <timestamp>_<label>/
     │       ├── report.json         raw cve-lite-cli output
     │       └── index.html          browsable HTML report (from cve-lite-cli)
-    └── comparisons/
-        └── <before-label>_vs_<after-label>.md   output of `secaudit compare`
+    ├── comparisons/
+    │   └── <before-label>_vs_<after-label>.md   output of `secaudit compare`
+    ├── logs/
+    │   └── install-<tool>.log      npm's full output from an install `init` ran
+    └── secaudit.config.json        which tools you chose to skip for this project
 ```
+
+A tool that was skipped leaves a `SKIPPED.txt` in its checkpoint folder
+instead of a report, saying why.
 
 `<timestamp>` looks like `2026-09-11T10-27-21Z` and `<label>` is whatever
 you passed to `--label` (or the version-derived default). A folder is

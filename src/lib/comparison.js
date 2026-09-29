@@ -44,7 +44,23 @@ function plainLanguageVerdict(prodDiff, prodAfterCounts) {
   return `${summary} — production tree still has ${prodAfterCounts.total} finding(s), action needed before release.`;
 }
 
-function buildComparisonMarkdown({ label1, label2, timestamp1, timestamp2, npmFull, npmProd, retire, cveLite }) {
+// A tool that didn't run on one side reads as "0 findings" there, which
+// would show every finding as closed or newly introduced. Flag it instead.
+function notRunNote(toolId, status, label1, label2) {
+  if (!status) return null;
+  const sides = [];
+  if (status.before[toolId] !== 'ran') sides.push(`\`${label1}\` (${status.before[toolId]})`);
+  if (status.after[toolId] !== 'ran') sides.push(`\`${label2}\` (${status.after[toolId]})`);
+  if (sides.length === 0) return null;
+  return `> **Not comparable:** this tool did not run for ${sides.join(' and ')}. Its numbers below are not a real before/after.`;
+}
+
+function pushNote(lines, note) {
+  if (!note) return;
+  lines.push(note, '');
+}
+
+function buildComparisonMarkdown({ label1, label2, timestamp1, timestamp2, npmFull, npmProd, retire, cveLite, status }) {
   const npmFullDiff = diffIds(npmFull.before.ids, npmFull.after.ids);
   const npmProdDiff = diffIds(npmProd.before.ids, npmProd.after.ids);
   const retireDiff = diffIds(retire.before.ids, retire.after.ids);
@@ -67,6 +83,7 @@ function buildComparisonMarkdown({ label1, label2, timestamp1, timestamp2, npmFu
   lines.push('');
   lines.push('This is the gate. It must read zero before a release.');
   lines.push('');
+  pushNote(lines, notRunNote('npmAudit', status, label1, label2));
   lines.push(severityTable(['critical', 'high', 'moderate', 'low', 'total'], npmProd.before.counts, npmProd.after.counts));
   lines.push('');
   lines.push(closedOpenIntroducedSection(npmProdDiff));
@@ -81,6 +98,7 @@ function buildComparisonMarkdown({ label1, label2, timestamp1, timestamp2, npmFu
 
   lines.push('## retire');
   lines.push('');
+  pushNote(lines, notRunNote('retire', status, label1, label2));
   lines.push('| | Before | After | Delta |');
   lines.push('|--|--------|-------|-------|');
   lines.push(`| Finding records | ${retire.before.findingRecords} | ${retire.after.findingRecords} | ${delta(retire.before.findingRecords, retire.after.findingRecords)} |`);
@@ -91,6 +109,7 @@ function buildComparisonMarkdown({ label1, label2, timestamp1, timestamp2, npmFu
 
   lines.push('## cve-lite-cli');
   lines.push('');
+  pushNote(lines, notRunNote('cveLite', status, label1, label2));
   lines.push(severityTable(['critical', 'high', 'medium', 'low', 'unknown', 'total'], cveLite.before.counts, cveLite.after.counts));
   lines.push('');
   lines.push(closedOpenIntroducedSection(cveLiteDiff));
