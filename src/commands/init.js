@@ -37,11 +37,25 @@ function printDiagnosis(diagnosis, logPath, cwd) {
   console.log('');
   ui.detail(ui.color.bold('How to fix:'));
   ui.detail(diagnosis.fixes.join('\n'), 3);
-  if (logPath) {
-    console.log('');
-    ui.detail(ui.color.dim(`Full npm log: ${path.relative(cwd, logPath)}`));
-  }
   console.log('');
+  if (logPath) ui.detail(ui.color.dim(`Full npm log: ${path.relative(cwd, logPath)}`));
+  ui.detail(`Run ${ui.color.cyan('secaudit doctor')} for a full check of your machine (PATH, proxy, GitHub access).`);
+  console.log('');
+}
+
+// Shown before the install question, so that if it breaks the user already
+// has a hint why — and knows `secaudit doctor` is where to look next.
+function printNeeds(scanner, ctx) {
+  const bullet = (text) => {
+    const [first, ...rest] = text.split('\n');
+    ui.detail(`• ${first}`, 3);
+    for (const more of rest) ui.detail(`  ${more}`, 3);
+  };
+  ui.detail(ui.color.dim(`${scanner.name} needs:`));
+  bullet(`Node.js ${scanner.minNode}+ ${ui.color.dim(`(you have ${ctx.node.version})`)}`);
+  scanner.needs.forEach(bullet);
+  if (scanner.headsUp) ui.detail(`${ui.color.yellow('Heads-up:')} ${scanner.headsUp}`);
+  ui.detail(ui.color.dim('If the install fails, run `secaudit doctor` to check your machine.'));
 }
 
 async function installScanner(cwd, scanner, ctx) {
@@ -102,6 +116,7 @@ async function setupScanner(cwd, scanner, ctx) {
     return offerSkip(cwd, scanner);
   }
 
+  printNeeds(scanner, ctx);
   const install = await confirm(ask(`Install ${scanner.name} now? (npm install -g ${scanner.pkg})`), true);
   if (!install) return offerSkip(cwd, scanner);
   return installScanner(cwd, scanner, ctx);

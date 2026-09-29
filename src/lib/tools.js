@@ -41,9 +41,30 @@ function run(bin, args, { cwd, input } = {}) {
 // Node and is never installed here. minNode mirrors each package's own
 // "engines" field; nativeDep names a compiled dependency that can fail to
 // install on locked-down machines (no prebuilt download, no build tools).
+// needs/heads-up are shown before installing, so if an install does break
+// the user already knows the likely reason.
 const SCANNERS = [
-  { id: 'retire', name: 'retire.js', bin: BIN.retire, pkg: INSTALL_PACKAGE.retire, minNode: 18 },
-  { id: 'cveLite', name: 'cve-lite-cli', bin: BIN.cveLite, pkg: INSTALL_PACKAGE.cveLite, minNode: 20, nativeDep: 'better-sqlite3' },
+  {
+    id: 'retire',
+    name: 'retire.js',
+    bin: BIN.retire,
+    pkg: INSTALL_PACKAGE.retire,
+    minNode: 18,
+    needs: ['access to the npm registry', 'plain JavaScript — nothing to compile'],
+  },
+  {
+    id: 'cveLite',
+    name: 'cve-lite-cli',
+    bin: BIN.cveLite,
+    pkg: INSTALL_PACKAGE.cveLite,
+    minNode: 20,
+    nativeDep: 'better-sqlite3',
+    needs: [
+      'access to the npm registry',
+      'better-sqlite3 (compiled code) — npm downloads a prebuilt copy from GitHub,\nor builds it locally with C++ build tools + Python',
+    ],
+    headsUp: 'Company proxies often block that GitHub download — the most common reason this install fails.',
+  },
   {
     id: 'auditExport',
     name: 'audit-export',
@@ -51,6 +72,7 @@ const SCANNERS = [
     pkg: INSTALL_PACKAGE.auditExport,
     minNode: 10,
     purpose: 'HTML report for npm audit',
+    needs: ['access to the npm registry', 'plain JavaScript — nothing to compile'],
   },
 ];
 

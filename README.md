@@ -123,8 +123,25 @@ Run this once per project, before your first scan. It:
    commands — including `secaudit` itself — only work through `npx`, and
    `init` shows the exact command to fix it).
 3. Checks whether `retire`, `cve-lite-cli`, and `audit-export` are
-   installed, as a ✔ / ✖ checklist. If any are missing, it asks (yes/no)
-   whether to install them for you.
+   installed, as a ✓ / ✗ checklist. If any are missing, it first shows
+   what that tool needs (Node.js version, network access, and any compiled
+   parts), then asks (yes/no) whether to install it for you:
+
+   ```
+     ✗ cve-lite-cli    not installed
+       cve-lite-cli needs:
+         • Node.js 20+ (you have v24.1.0)
+         • access to the npm registry
+         • better-sqlite3 (compiled code) — npm downloads a prebuilt copy from GitHub,
+           or builds it locally with C++ build tools + Python
+       Heads-up: Company proxies often block that GitHub download — the most common reason this install fails.
+       If the install fails, run `secaudit doctor` to check your machine.
+     ? Install cve-lite-cli now? (npm install -g cve-lite-cli) [Y/n]
+   ```
+
+   `retire.js` and `audit-export` are plain JavaScript and only need
+   access to the npm registry; `cve-lite-cli` is the one that can trip
+   over locked-down networks.
 4. Asks (yes/no) whether to add `audits/` to your `.gitignore`. Scan
    results can contain a lot of detail about your dependencies, so most
    teams choose not to commit them — but the choice is yours.
@@ -135,12 +152,15 @@ keeps npm's full output in `audits/logs/install-<tool>.log`, and then asks
 whether to **skip that tool for this project**:
 
 ```
-  ✖ cve-lite-cli    could not be installed
+  ✗ cve-lite-cli    could not be installed
 
     Why: cve-lite-cli could not build its native part (better-sqlite3)
       ...
     How to fix:
       ...
+
+    Full npm log: audits\logs\install-cve-lite-cli.log
+    Run secaudit doctor for a full check of your machine (PATH, proxy, GitHub access).
 
     `secaudit scan` still runs the other scanners and leaves cve-lite-cli out of the results.
   ? Skip cve-lite-cli for this project? [Y/n] y

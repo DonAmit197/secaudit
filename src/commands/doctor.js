@@ -76,6 +76,9 @@ async function doctor(cwd) {
       ui.skip(`${label}skipped for this project`);
     } else {
       ui.fail(`${label}not installed`);
+      if (scanner.nativeDep) {
+        ui.detail(ui.color.dim(`needs ${scanner.nativeDep} (compiled code): GitHub access for a prebuilt copy, or C++ build tools + Python`));
+      }
       if (node.major < scanner.minNode) {
         problem(`${scanner.name} needs Node.js ${scanner.minNode}+ (you have ${node.version}). Upgrade Node.js, or skip it with \`secaudit init\`.`);
       } else {

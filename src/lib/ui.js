@@ -1,4 +1,4 @@
-// Small terminal helpers for checklist-style output (✔ / ✖ / ⚠ / ○) and a
+// Small terminal helpers for checklist-style output (✓ / ✗ / ! / ○) and a
 // spinner for slow steps. No dependencies: plain ANSI codes, switched off
 // when output isn't a terminal or NO_COLOR is set.
 
@@ -17,12 +17,14 @@ const color = {
   bold: paint(1),
 };
 
+// Single-width glyphs only: ✔ ✖ ⚠ ℹ render as double-width emoji in
+// Windows Terminal and swallow the space after them.
 const symbol = {
-  ok: color.green('✔'),
-  fail: color.red('✖'),
-  warn: color.yellow('⚠'),
+  ok: color.green('✓'),
+  fail: color.red('✗'),
+  warn: color.yellow('!'),
   skip: color.dim('○'),
-  info: color.cyan('ℹ'),
+  info: color.cyan('i'),
 };
 
 const INDENT = '  ';
